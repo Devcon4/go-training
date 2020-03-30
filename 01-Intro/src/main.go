@@ -5,15 +5,20 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {
-	server := http.Server{
-		Addr: ":3000",
+	router := mux.NewRouter()
+
+	router.HandleFunc("/chat/{id}", getChatRequest).Methods("GET")
+
+	server := &http.Server{
+		Addr:    ":3000",
+		Handler: router,
 	}
 
-	http.HandleFunc("/chat/", getChatRequest)
 	log.Fatal(server.ListenAndServe())
 }
 
@@ -21,34 +26,31 @@ func main() {
 type chat struct {
 	ID      int    `json:"id"`
 	Message string `json:"message"`
+	IsRead  bool
 }
 
 var data = []chat{
 	chat{
 		ID:      0,
 		Message: "Chat-1!",
+		IsRead:  false,
 	},
 	chat{
 		ID:      1,
 		Message: "Chat-2",
+		IsRead:  true,
 	},
 }
 
 // getChatRequest: Get handler for a chat.
 func getChatRequest(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
 
-	reqParsed, err := strconv.ParseInt(strings.TrimPrefix(r.URL.Path, "/chat/"), 10, 32)
-
-	if err != nil {
-		http.Error(w, "Unable to parse request id.", http.StatusInternalServerError)
-		return
-	}
-
-	reqID := int(reqParsed)
+	id, _ := strconv.Atoi(params["id"])
 	var res *chat
 
 	for i := range data {
-		if data[i].ID == reqID {
+		if data[i].ID == id {
 			res = &data[i]
 			break
 		}
@@ -59,13 +61,12 @@ func getChatRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json, err := json.Marshal(res)
+	resData, err := json.Marshal(res)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		http.Error(w, "Json parse error.", http.StatusInternalServerError)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(json)
+	w.Write(resData)
 }
